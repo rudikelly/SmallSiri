@@ -9,6 +9,8 @@
 @interface SBAssistantWindow : UIWindow
 -(void)didSwipeUp;
 -(void)didSwipeDown;
+-(void)expandSiriView;
+-(void)closeSiriView;
 @end
 
 @interface UIStatusBar : UIView
@@ -38,6 +40,10 @@
 @interface SUICFlamesView : UIView
 @end
 
+@interface NSUserDefaults (inDomain)
+-(id)objectForKey:(id)arg1 inDomain:(id)arg2 ;
+@end
+
 static CGFloat yChange = 0;
 static UISwipeGestureRecognizer* swipeUpGesture;
 static UISwipeGestureRecognizer* swipeDownGesture;
@@ -49,6 +55,12 @@ static BOOL hasExpanded = NO;
 static UIView* statusBar;
 static UIView* sbSuperview;
 
+static BOOL getPrefBool(NSString* key, BOOL fallback)
+{
+    id value = [[NSUserDefaults standardUserDefaults] objectForKey:key inDomain:@"com.muirey03.smallsiri"];
+    return value ? [value boolValue] : fallback;
+}
+
 //change the frame and corner radius of the siri window - This is where the magic happens
 %hook SBAssistantWindow
 -(void)becomeKeyWindow
@@ -57,7 +69,14 @@ static UIView* sbSuperview;
     if (!hasExpanded)
     {
         CGFloat yF = isX ? 44 : 10;
-        self.frame = CGRectMake(10, yF, kWidth - 20, 90);
+        if (getPrefBool(@"fromTop", YES))
+        {
+            self.frame = CGRectMake(10, kHeight - 115, kWidth - 20, 90);
+        }
+        else
+        {
+            self.frame = CGRectMake(10, yF, kWidth - 20, 90);
+        }
         self.subviews[0].layer.cornerRadius = 15;
         self.subviews[0].clipsToBounds = YES;
 
@@ -80,14 +99,22 @@ static UIView* sbSuperview;
 }
 
 %new
--(void)didSwipeUp
+-(void)closeSiriView
 {
     if (!hasExpanded)
     {
         //dismiss siri
         [UIView animateWithDuration:0.3f animations:^{
             //animate it upwards
-            self.subviews[0].center = CGPointMake(self.subviews[0].center.x, -90);
+            if (getPrefBool(@"fromTop", YES))
+            {
+              self.subviews[0].center = CGPointMake(self.subviews[0].center.x, 200);
+            }
+            else
+            {
+              self.subviews[0].center = CGPointMake(self.subviews[0].center.x, -90);
+            }
+
         } completion:^(BOOL finished) {
             //simulate home button press to dismiss it
             [(SpringBoard *)[%c(UIApplication) sharedApplication] _simulateHomeButtonPress];
@@ -96,7 +123,7 @@ static UIView* sbSuperview;
 }
 
 %new
--(void)didSwipeDown
+-(void)expandSiriView
 {
     if (!hasExpanded)
     {
@@ -140,6 +167,33 @@ static UIView* sbSuperview;
         hasExpanded = YES;
     }
 }
+
+%new
+-(void)didSwipeUp
+{
+    if (getPrefBool(@"fromTop", YES))
+    {
+        [self expandSiriView];
+    }
+    else
+    {
+        [self closeSiriView];
+    }
+}
+
+%new
+-(void)didSwipeDown
+{
+    if (getPrefBool(@"fromTop", YES))
+    {
+        [self closeSiriView];
+    }
+    else
+    {
+        [self expandSiriView];
+    }
+}
+
 %end
 
 //hide the status bar in the siri window
